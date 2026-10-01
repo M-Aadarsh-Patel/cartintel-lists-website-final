@@ -1,0 +1,22 @@
+{
+  "name": "cartintel-site",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "serve": "python3 -m http.server 4173",
+    "check": "node highlights.mjs && node interact.mjs && node shoot.mjs",
+    "shots": "node sections.mjs",
+    "frames": "node frames.mjs",
+    "sheet": "node sheet.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@phosphor-icons/core": "^2.1.1",
+    "playwright": "^1.63.0"
+  },
+  "private": true
+}
