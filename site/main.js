@@ -1,6 +1,6 @@
 // Cartintel: hero checking sequence, grade tabs, list toggle, source link, sample form.
 // CSS controls motion intensity; JS sequences the highlights without moving the text.
-const CONTACT = 'hello@cartintel.co';
+const CONTACT = 'aadarsh@cartintel.co';
 
 const onScreen = (el, cb, threshold = 0.25) => {
   const io = new IntersectionObserver(([e]) => {
@@ -270,8 +270,9 @@ exhibits.addEventListener('pointerleave', () => { if (!exhibits.contains(documen
 exhibits.addEventListener('focusin', () => link(true));
 exhibits.addEventListener('focusout', (e) => { if (!exhibits.contains(e.relatedTarget)) link(false); });
 
-// Sample form. No backend yet: validates, then opens a pre-filled email.
-// ponytail: mailto hand-off, swap for a form endpoint (Formspree, a serverless function) to capture requests without the visitor's mail app.
+// Sample form. Validates, then posts to Web3Forms, which emails the request to the address the access key was made for.
+// The key is meant to be public: it can only send to that inbox. Get one at https://web3forms.com.
+const WEB3FORMS_KEY = 'c18281c4-8e8d-4e5e-8db5-3e83f76979bd';
 const form = document.getElementById('sample-form');
 const city = form.elements.city;
 const otherWrap = document.getElementById('f-other-wrap');
@@ -279,6 +280,7 @@ const other = form.elements.other;
 const submitBtn = form.querySelector('[type="submit"]');
 const submitLabel = submitBtn.querySelector('.btn__label');
 const idleLabel = submitLabel.textContent;
+const fail = document.getElementById('form-fail');
 
 city.addEventListener('change', () => {
   const on = city.value.startsWith('other');
@@ -306,10 +308,10 @@ function setLoading(on) {
   submitBtn.disabled = on;
   submitBtn.classList.toggle('is-loading', on);
   submitBtn.setAttribute('aria-busy', String(on));
-  submitLabel.textContent = on ? 'Opening your email app…' : idleLabel;
+  submitLabel.textContent = on ? 'Sending…' : idleLabel;
 }
 
-form.addEventListener('submit', (e) => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (submitBtn.disabled) return;
   const els = [...form.querySelectorAll('input[required], select[required]')];
@@ -318,25 +320,35 @@ form.addEventListener('submit', (e) => {
 
   const f = Object.fromEntries(new FormData(form));
   const where = f.city.startsWith('other') ? f.other.trim() : `${f.city}, FL`;
-  const body = [
-    `Name: ${f.name.trim()}`,
-    `Agency: ${f.agency.trim()}`,
-    `Email: ${f.email.trim()}`,
-    `City I sell into: ${where}`,
-    '',
-    'Current clients to leave out:',
-    f.exclude.trim() || '(none)',
-  ].join('\n');
+  const subject = `Free 10-record sample: ${where}`;
+  const fields = {
+    Name: f.name.trim(),
+    Agency: f.agency.trim(),
+    Email: f.email.trim(),
+    'City they sell into': where,
+    'Current clients to leave out': f.exclude.trim() || '(none)',
+  };
 
+  fail.hidden = true;
   setLoading(true);
-  // Let the loading state paint before the OS switches to the mail app.
-  setTimeout(() => {
-    location.href = `mailto:${CONTACT}?subject=${encodeURIComponent(`Free 10-record sample: ${where}`)}&body=${encodeURIComponent(body)}`;
-  }, 250);
-  setTimeout(() => {
-    setLoading(false);
+  try {
+    const res = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ access_key: WEB3FORMS_KEY, subject, from_name: 'Cartintel website', replyto: fields.Email, ...fields }),
+    });
+    if (!(await res.json()).success) throw new Error(res.status);
+    form.querySelector('.form__fields').hidden = true;
+    submitBtn.hidden = true;
     const done = document.getElementById('form-done');
     done.hidden = false;
     done.focus();
-  }, 1200);
+  } catch {
+    // Keep what they typed reachable: the fallback link opens their mail app with it filled in.
+    const body = Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join('\n');
+    fail.querySelector('a').href = `mailto:${CONTACT}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    fail.hidden = false;
+  } finally {
+    setLoading(false);
+  }
 });

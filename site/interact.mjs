@@ -92,13 +92,26 @@ for (const reducedMotion of ['no-preference', 'reduce']) {
   await p.selectOption('#f-city', 'other-us');
   assert(await p.isVisible('#f-other-wrap'), '"Another US city" shows the city field');
   await p.fill('#f-other', 'Austin, TX');
+  // Fake the form service: fail first, then succeed after a delay so the loading state is visible.
+  let sent = null, ok = false;
+  await p.route('https://api.web3forms.com/submit', async (r) => {
+    sent = r.request().postDataJSON();
+    await new Promise((res) => setTimeout(res, 300));
+    r.fulfill({ json: { success: ok } });
+  });
   await p.click('#sample-form button[type=submit]');
   await p.waitForTimeout(80);
   assert(await p.$eval('#sample-form [type=submit]', (e) => e.disabled && e.getAttribute('aria-busy') === 'true'), 'button enters loading state');
-  assert((await p.textContent('.btn__label')) === 'Opening your email app…', 'loading label shown');
-  await p.waitForTimeout(1300);
-  assert(await p.isVisible('#form-done'), 'success panel shown');
+  assert((await p.textContent('.btn__label')) === 'Sending…', 'loading label shown');
+  await p.waitForTimeout(500);
+  assert(sent?.Name === 'Ana Ruiz' && sent['City they sell into'] === 'Austin, TX' && sent.replyto === 'ana@tidewater.example', 'all details posted');
+  assert(await p.isVisible('#form-fail') && !(await p.isVisible('#form-done')), 'failed send shows error, not success');
+  assert((await p.$eval('#form-fail a', (a) => a.href)).includes('Ana%20Ruiz'), 'fallback email link carries the details');
   assert(await p.$eval('#sample-form [type=submit]', (e) => !e.disabled), 'button restored');
+  ok = true;
+  await p.click('#sample-form button[type=submit]');
+  await p.waitForTimeout(500);
+  assert(await p.isVisible('#form-done') && !(await p.isVisible('#form-fail')), 'success panel shown');
 
   // Interrupting: a tab click mid-typing settles the record instead of corrupting it.
   await p.goto('http://localhost:4173/');
